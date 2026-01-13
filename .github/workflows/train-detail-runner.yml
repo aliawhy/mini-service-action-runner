@@ -1,4 +1,4 @@
-name: GuangDong TrainDetail Runner
+name: TrainDetail Runner
 
 on:
   schedule:
