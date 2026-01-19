@@ -1,4 +1,4 @@
-name: TrainDetail Runner
+name: TrainDetail For GDCJ Runner
 
 on:
   schedule:
@@ -47,4 +47,4 @@ jobs:
           MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
         # 使用 npx tsx 直接运行私有仓库中的脚本
         # 请确保这个路径和文件名与您私有仓库中的入口文件一致
-        run: npx tsx src/runner/Train-detail-runner/TrainDetailRunner.ts
+        run: npx tsx src/runner/train-detail-runner/TrainDetailForGDCJRunner.ts

@@ -1,0 +1,51 @@
+name: TrainDetail For PathFinder Runner
+
+on:
+  # 此任务为手动触发，因为要获取大量路网的车次
+  #  schedule:
+  #    # 每天16点15分UTC运行（北京时间0点15分）
+  #    - cron: '15 16 * * *'
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  run-logic:
+    runs-on: ubuntu-latest
+    
+    # 添加权限设置
+    permissions:
+      contents: write
+    
+    steps:
+      # 步骤 1: 克隆逻辑仓库到当前工作目录
+      - name: Clone Private Logic Repository
+        env:
+          MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
+        run: |
+          echo "🔑 Cloning private logic repository: ${REPO_OWNER}/${REPO_NAME}"
+          # 直接克隆到当前目录 (.)
+          git clone ${MY_GITHUB_MINI_ACTION_LOGIC_URL} .
+          echo "✅ Private logic cloned to current directory."
+
+      # 步骤 2: 设置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # 步骤 3: 安装逻辑仓库的依赖
+      - name: Install Dependencies
+        run: npm ci
+
+      # 步骤 4: 运行 TypeScript 脚本
+      - name: Run Core Logic Script
+        env:
+          # --- 在这里传递所有必要的 Secrets ---
+          MY_GITHUB_MINI_DATA_UPLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_UPLOADER_URL }}
+          MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
+          MY_GITHUB_MINI_DATABASE_URL: ${{ secrets.MY_GITHUB_MINI_DATABASE_URL }}
+          MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
+        # 使用 npx tsx 直接运行私有仓库中的脚本
+        # 请确保这个路径和文件名与您私有仓库中的入口文件一致
+        run: npx tsx src/runner/train-detail-runner/TrainDetailForPathFinderRunner.ts
