@@ -1,4 +1,4 @@
-name: TrainDetail For PathFinder Runner
+name: TrainDetail For PathFinder Runner With QueryCC
 
 on:
   # 此任务为手动触发，因为要获取大量路网的车次
@@ -48,4 +48,4 @@ jobs:
           MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
         # 使用 npx tsx 直接运行私有仓库中的脚本
         # 请确保这个路径和文件名与您私有仓库中的入口文件一致
-        run: npx tsx src/runner/train-detail-runner/TrainDetailForPathFinderRunner.ts
+        run: npx tsx src/runner/train-detail-runner/TrainDetailForPathFinderRunnerWithQueryCC.ts
