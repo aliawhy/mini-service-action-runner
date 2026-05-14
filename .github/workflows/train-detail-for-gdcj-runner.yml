@@ -20,67 +20,55 @@ jobs:
     # 添加权限设置
     permissions:
       contents: write
-    
+
     steps:
-      # 步骤 1: 克隆逻辑仓库到当前工作目录
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      # 步骤 1: 克隆逻辑仓库到【子目录】
       - name: Clone Private Logic Repository
         env:
           MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
         run: |
-          echo "🔑 Cloning private logic repository: ${REPO_OWNER}/${REPO_NAME}"
-          # 直接克隆到当前目录 (.)
-          git clone ${MY_GITHUB_MINI_ACTION_LOGIC_URL} .
-          echo "✅ Private logic cloned to current directory."
+          # 使用 ./logic 子目录，保护当前仓库的 .git 不被覆盖
+          git clone ${MY_GITHUB_MINI_ACTION_LOGIC_URL} ./logic
+          echo "✅ Private logic cloned to ./logic directory."
 
       # 步骤 2: 设置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
 
-      # 步骤 3: 安装逻辑仓库的依赖
+      # 步骤 3: 在子目录中安装依赖
       - name: Install Dependencies
-        run: npm ci
+        run: |
+          cd ./logic
+          npm ci
 
-      # 步骤 4: 运行 TypeScript 脚本
+      # 步骤 4: 在子目录中运行脚本
       - name: Run Core Logic Script
         env:
-          # --- 在这里传递所有必要的 Secrets ---
           MY_GITHUB_MINI_DATA_UPLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_UPLOADER_URL }}
           MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
           MY_GITHUB_MINI_DATABASE_URL: ${{ secrets.MY_GITHUB_MINI_DATABASE_URL }}
           MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
           MY_GITHUB_MINI_ACTION_RUNNER_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_RUNNER_URL }}
-
-        # 使用 npx tsx 直接运行私有仓库中的脚本
-        # 请确保这个路径和文件名与您私有仓库中的入口文件一致
-        run: npx tsx src/runner/train-detail-runner/TrainDetailForGDCJRunner.ts
-
-      # 步骤 5: 更新时间戳文件到宿主仓库以保持活跃
-      - name: Update Timestamp to Keep Repo Active
-        env:
-          # 使用你的宿主仓库地址 Secret
-          MY_GITHUB_MINI_ACTION_RUNNER_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_RUNNER_URL }}
         run: |
-          # 获取中国时区时间（北京时间），格式为 年-月-日 时:分:秒
+          cd ./logic
+          npx tsx src/runner/train-detail-runner/TrainDetailForGDCJRunner.ts
+
+      # 步骤 5: 极简更新时间戳！什么都不用配，直接 push！
+      - name: Update Timestamp to Keep Repo Active
+        run: |
           CURRENT_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
           
-          # 确保 log 目录存在（-p 表示如果父目录不存在则一并创建，且不会报错）
           mkdir -p log
-          
-          # 写入内容到目标文件
           echo "updateTime: ${CURRENT_TIME}" > "log/TrainDetail For GDCJ Runner.txt"
           
-          # 按照要求配置 Git 署名
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
           
-          # 暂存文件
           git add "log/TrainDetail For GDCJ Runner.txt"
-          
-          # 提交更改
           git commit -m "chore: keep repo active - ${CURRENT_TIME}"
-          
-          # 推送到宿主仓库的 main 分支
-          git push ${MY_GITHUB_MINI_ACTION_RUNNER_URL} HEAD:main
+          git push

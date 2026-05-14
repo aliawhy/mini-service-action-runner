@@ -1,0 +1,26 @@
+name: Test-Log
+
+on:
+  # 仅允许手动触发
+  workflow_dispatch:
+
+jobs:
+  Test-Log:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Update Test-Log Timestamp
+        run: |
+          CURRENT_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          mkdir -p log
+          echo "updateTime: ${CURRENT_TIME}" > "log/Test-Log.txt"
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add "log/Test-Log.txt"
+          git commit -m "test: add Test-Log - ${CURRENT_TIME}"
+          git push
