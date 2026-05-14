@@ -45,6 +45,33 @@ jobs:
           MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
           MY_GITHUB_MINI_DATABASE_URL: ${{ secrets.MY_GITHUB_MINI_DATABASE_URL }}
           MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
+          MY_GITHUB_MINI_ACTION_RUNNER_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_RUNNER_URL }}
+
         # 使用 npx tsx 直接运行私有仓库中的脚本
         # 请确保这个路径和文件名与您私有仓库中的入口文件一致
         run: npx tsx src/runner/train-detail-runner/TrainDetailForGDCJRunner.ts
+
+      # 步骤 5: 更新时间戳文件到宿主仓库以保持活跃
+      - name: Update Timestamp to Keep Repo Active
+        env:
+          # 使用你的宿主仓库地址 Secret
+          MY_GITHUB_MINI_ACTION_RUNNER_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_RUNNER_URL }}
+        run: |
+          # 获取中国时区时间（北京时间），格式为 年-月-日 时:分:秒
+          CURRENT_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          
+          # 写入内容到目标文件
+          echo "updateTime: ${CURRENT_TIME}" > "TrainDetail For GDCJ Runner.txt"
+          
+          # 按照要求配置 Git 署名
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          
+          # 暂存文件
+          git add "TrainDetail For GDCJ Runner.txt"
+          
+          # 提交更改
+          git commit -m "chore: keep repo active - ${CURRENT_TIME}"
+          
+          # 推送到宿主仓库的 main 分支
+          git push ${MY_GITHUB_MINI_ACTION_RUNNER_URL} HEAD:main
