@@ -60,15 +60,18 @@ jobs:
           # 获取中国时区时间（北京时间），格式为 年-月-日 时:分:秒
           CURRENT_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
           
+          # 确保 log 目录存在（-p 表示如果父目录不存在则一并创建，且不会报错）
+          mkdir -p log
+          
           # 写入内容到目标文件
-          echo "updateTime: ${CURRENT_TIME}" > "TrainDetail For GDCJ Runner.txt"
+          echo "updateTime: ${CURRENT_TIME}" > "log/TrainDetail For GDCJ Runner.txt"
           
           # 按照要求配置 Git 署名
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
           
           # 暂存文件
-          git add "TrainDetail For GDCJ Runner.txt"
+          git add "log/TrainDetail For GDCJ Runner.txt"
           
           # 提交更改
           git commit -m "chore: keep repo active - ${CURRENT_TIME}"
