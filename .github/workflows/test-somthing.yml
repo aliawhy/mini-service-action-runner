@@ -1,0 +1,20 @@
+name: 获取Gitee版本信息
+
+on:
+  workflow_dispatch: # 手动触发
+
+jobs:
+  fetch-data:
+    runs-on: ubuntu-latest
+    name: 调用接口并打印
+
+    steps:
+      - name: 请求接口并打印Body
+        run: |
+          echo "====== 开始请求 Gitee 接口 ======"
+          
+          # 使用 curl 请求，-s 不显示进度，-S 显示错误，-L 跟随重定向(可选)
+          RESPONSE=$(curl -sS "https://gitee.com/aliawhy/mini-service-data-downloader/raw/version_alili-xianlutong-train-report-msg/version/alili-xianlutong-train-report-msg.version.json")
+          
+          echo "====== 响应内容如下 ======"
+          echo "${RESPONSE}"
