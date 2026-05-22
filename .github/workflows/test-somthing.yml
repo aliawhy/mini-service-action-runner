@@ -13,8 +13,18 @@ jobs:
         run: |
           echo "====== 开始请求 Gitee 接口 ======"
           
-          # 使用 curl 请求，-s 不显示进度，-S 显示错误，-L 跟随重定向(可选)
-          RESPONSE=$(curl -sS "https://gitee.com/aliawhy/mini-service-data-downloader/raw/version_alili-xianlutong-train-report-msg/version/alili-xianlutong-train-report-msg.version.json")
+          # -sS: 静默进度但显示错误
+          # -L: 跟随重定向 (Gitee某些情况可能会302跳转)
+          # --connect-timeout 10: 连接超时10秒
+          # --max-time 30: 总超时30秒
+          # -w "\n状态码: %{http_code}\n": 无论成功失败，最后打印HTTP状态码
+          
+          RESPONSE=$(curl -sS -L --connect-timeout 10 --max-time 30 \
+            -w "\n状态码: %{http_code}\n" \
+            "https://gitee.com/aliawhy/mini-service-data-downloader/raw/version_alili-xianlutong-train-report-msg/version/alili-xianlutong-train-report-msg.version.json" 2>&1)
           
           echo "====== 响应内容如下 ======"
-          echo "${RESPONSE}"
+          # 使用 printf 防止某些特殊情况下的空白吞没，确保100%输出
+          printf "%s\n" "$RESPONSE"
+          
+          echo "====== 检查完毕 ======"
