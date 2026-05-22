@@ -1,0 +1,171 @@
+name: 域名连通性检查
+
+on:
+  workflow_dispatch:  # 纯手动触发
+    inputs:
+      domain:
+        description: '要检查的域名'
+        required: true
+        default: 'iro-traa.gzmtr.com'
+
+env:
+  TARGET_DOMAIN: ${{ github.event.inputs.domain }}
+
+jobs:
+  check-domain:
+    runs-on: ubuntu-latest
+    name: 检查域名连通性
+
+    steps:
+      - name: 🔍 DNS 解析检查
+        id: dns
+        run: |
+          echo "====== DNS 解析: ${TARGET_DOMAIN} ======"
+          
+          DNS_IPV4=$(dig +short "${TARGET_DOMAIN}" A 2>&1) || true
+          DNS_IPV6=$(dig +short "${TARGET_DOMAIN}" AAAA 2>&1) || true
+          
+          if [ -n "$DNS_IPV4" ] || [ -n "$DNS_IPV6" ]; then
+            echo "dns_status=✅ 已解析" >> $GITHUB_OUTPUT
+          else
+            echo "dns_status=❌ 未解析" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "dns_ipv4=${DNS_IPV4:-无}" >> $GITHUB_OUTPUT
+          echo "dns_ipv6=${DNS_IPV6:-无}" >> $GITHUB_OUTPUT
+          
+          echo "IPv4: $DNS_IPV4"
+          echo "IPv6: $DNS_IPV6"
+
+      - name: 📡 TCP 端口连通性检查 (替代 Ping)
+        id: tcp
+        run: |
+          echo "====== TCP 端口探测: ${TARGET_DOMAIN} ======"
+          echo "注: GitHub Runner 禁用了 ICMP, 使用 TCP 探测替代 Ping 以检测网络层可达性"
+          
+          # 测试 443 端口 (HTTPS)
+          PORT_443_OUTPUT=$(nc -z -w 5 "${TARGET_DOMAIN}" 443 2>&1 && echo "SUCCESS" || echo "FAILED")
+          if echo "$PORT_443_OUTPUT" | grep -q "SUCCESS"; then
+            echo "tcp_443_status=✅ 可连通" >> $GITHUB_OUTPUT
+          else
+            echo "tcp_443_status=❌ 不通" >> $GITHUB_OUTPUT
+          fi
+          
+          # 测试 80 端口 (HTTP)
+          PORT_80_OUTPUT=$(nc -z -w 5 "${TARGET_DOMAIN}" 80 2>&1 && echo "SUCCESS" || echo "FAILED")
+          if echo "$PORT_80_OUTPUT" | grep -q "SUCCESS"; then
+            echo "tcp_80_status=✅ 可连通" >> $GITHUB_OUTPUT
+          else
+            echo "tcp_80_status=❌ 不通" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🔗 HTTP/HTTPS 可访问性检查
+        id: http
+        run: |
+          # 检查 HTTPS
+          echo "====== HTTPS 检查: https://${TARGET_DOMAIN} ======"
+          HTTPS_OUTPUT=$(curl -L -s -o /dev/null -w "%{http_code}|%{time_total}|%{ssl_verify_result}" \
+            --connect-timeout 10 --max-time 30 "https://${TARGET_DOMAIN}" 2>&1) || true
+          
+          HTTPS_CODE=$(echo "$HTTPS_OUTPUT" | cut -d'|' -f1)
+          HTTPS_TIME=$(echo "$HTTPS_OUTPUT" | cut -d'|' -f2)
+          HTTPS_SSL=$(echo "$HTTPS_OUTPUT" | cut -d'|' -f3)
+          
+          if [ "$HTTPS_CODE" -ge 200 ] && [ "$HTTPS_CODE" -lt 400 ] 2>/dev/null; then
+            echo "https_status=✅ 可访问 (${HTTPS_CODE})" >> $GITHUB_OUTPUT
+          elif [ "$HTTPS_CODE" = "000" ]; then
+            echo "https_status=❌ 无法连接" >> $GITHUB_OUTPUT
+          else
+            echo "https_status=⚠️ 响应异常 (${HTTPS_CODE})" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "https_code=${HTTPS_CODE}" >> $GITHUB_OUTPUT
+          echo "https_time=${HTTPS_TIME}" >> $GITHUB_OUTPUT
+          echo "https_ssl=${HTTPS_SSL}" >> $GITHUB_OUTPUT
+          
+          # 检查 HTTP
+          echo "====== HTTP 检查: http://${TARGET_DOMAIN} ======"
+          HTTP_OUTPUT=$(curl -L -s -o /dev/null -w "%{http_code}|%{time_total}" \
+            --connect-timeout 10 --max-time 30 "http://${TARGET_DOMAIN}" 2>&1) || true
+          
+          HTTP_CODE=$(echo "$HTTP_OUTPUT" | cut -d'|' -f1)
+          HTTP_TIME=$(echo "$HTTP_OUTPUT" | cut -d'|' -f2)
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ] 2>/dev/null; then
+            echo "http_status=✅ 可访问 (${HTTP_CODE})" >> $GITHUB_OUTPUT
+          elif [ "$HTTP_CODE" = "000" ]; then
+            echo "http_status=❌ 无法连接" >> $GITHUB_OUTPUT
+          else
+            echo "http_status=⚠️ 响应异常 (${HTTP_CODE})" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "http_code=${HTTP_CODE}" >> $GITHUB_OUTPUT
+          echo "http_time=${HTTP_TIME}" >> $GITHUB_OUTPUT
+
+      - name: 📊 生成检查报告
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<REPORT
+          ## 🌐 域名连通性检查报告
+
+          **检查域名:** \`${TARGET_DOMAIN}\`
+          **检查时间:** $(date '+%Y-%m-%d %H:%M:%S UTC')
+
+          ---
+
+          ### 1. DNS 解析
+          | 项目 | 结果 |
+          |------|------|
+          | IPv4 | \`${{ steps.dns.outputs.dns_ipv4 }}\` |
+          | IPv6 | \`${{ steps.dns.outputs.dns_ipv6 }}\` |
+          | 状态 | ${{ steps.dns.outputs.dns_status }} |
+
+          ### 2. TCP 端口连通性 (网络层)
+          | 端口 | 用途 | 可达性 |
+          |------|------|--------|
+          | 443 | HTTPS | ${{ steps.tcp.outputs.tcp_443_status }} |
+          | 80  | HTTP  | ${{ steps.tcp.outputs.tcp_80_status }} |
+
+          ### 3. HTTP/HTTPS 访问 (应用层)
+          | 协议 | 状态码 | 响应时间 | 可达性 |
+          |------|--------|----------|--------|
+          | HTTPS | \`${{ steps.http.outputs.https_code }}\` | \`${{ steps.http.outputs.https_time }}s\` | ${{ steps.http.outputs.https_status }} |
+          | HTTP  | \`${{ steps.http.outputs.http_code }}\` | \`${{ steps.http.outputs.http_time }}s\` | ${{ steps.http.outputs.http_status }} |
+
+          ---
+
+          REPORT
+
+      - name: 🚨 综合判定
+        run: |
+          FAIL=0
+          REASONS=""
+          
+          if echo "${{ steps.dns.outputs.dns_status }}" | grep -q "❌"; then
+            FAIL=1
+            REASONS="$REASONS\n- ❌ DNS 无法解析"
+          fi
+          
+          if echo "${{ steps.tcp.outputs.tcp_443_status }}" | grep -q "❌" && echo "${{ steps.tcp.outputs.tcp_80_status }}" | grep -q "❌"; then
+            FAIL=1
+            REASONS="$REASONS\n- ❌ TCP 端口 80/443 均不通"
+          fi
+          
+          if echo "${{ steps.http.outputs.https_status }}" | grep -q "❌" && echo "${{ steps.http.outputs.http_status }}" | grep -q "❌"; then
+            FAIL=1
+            REASONS="$REASONS\n- ❌ HTTP/HTTPS 均无法访问"
+          fi
+          
+          if [ "$FAIL" -eq 1 ]; then
+            echo -e "=========================================="
+            echo -e "  域名: ${TARGET_DOMAIN}"
+            echo -e "  结果: ❌ 域名异常"
+            echo -e "=========================================="
+            echo -e "检测到问题:$REASONS"
+            # 如果需要检查失败时让 Action 报红，取消下面注释
+            # exit 1
+          else
+            echo "=========================================="
+            echo "  域名: ${TARGET_DOMAIN}"
+            echo "  结果: ✅ 域名正常"
+            echo "=========================================="
+          fi
