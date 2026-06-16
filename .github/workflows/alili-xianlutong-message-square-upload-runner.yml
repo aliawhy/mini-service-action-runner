@@ -1,0 +1,75 @@
+name: 信息广场上报
+
+on:
+  # 允许手动触发
+  workflow_dispatch:
+
+  # 通过 repository_dispatch 事件接收 Gitee 的触发
+  repository_dispatch:
+    types: [ alili-xianlutong-message-square-upload ]
+
+# 并发控制：避免重复执行
+concurrency:
+  group: alili-xianlutong-message-square-upload
+  cancel-in-progress: true # 新杀旧
+
+
+jobs:
+  run-logic:
+    runs-on: ubuntu-latest
+
+    # 添加权限设置
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      # 步骤 1: 克隆逻辑仓库到【子目录】
+      - name: Clone Private Logic Repository
+        env:
+          MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
+        run: |
+          # 使用 ./logic 子目录，保护当前仓库的 .git 不被覆盖
+          git clone ${MY_GITHUB_MINI_ACTION_LOGIC_URL} ./logic
+          echo "✅ Private logic cloned to ./logic directory."
+
+      # 步骤 2: 设置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # 步骤 3: 在子目录中安装依赖
+      - name: Install Dependencies
+        run: |
+          cd ./logic
+          npm ci
+
+      # 步骤 4: 在子目录中运行脚本
+      - name: Run Core Logic Script
+        env:
+          MY_GITHUB_MINI_DATA_UPLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_UPLOADER_URL }}
+          MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
+          MY_GITHUB_MINI_DATABASE_URL: ${{ secrets.MY_GITHUB_MINI_DATABASE_URL }}
+          MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
+          MY_GITHUB_MINI_ACTION_RUNNER_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_RUNNER_URL }}
+        run: |
+          cd ./logic
+          npx tsx src/github-action/alili-xianlutong/message-square-upload/MessageSquareUploadRunner.ts
+
+      # 步骤 5: 极简更新时间戳！什么都不用配，直接 push！
+      - name: Update Timestamp to Keep Repo Active
+        run: |
+          CURRENT_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          
+          mkdir -p log/alili-xianlutong
+          echo "updateTime: ${CURRENT_TIME}" > "log/alili-xianlutong/message-square-upload.txt"
+          
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          
+          git add "log/alili-xianlutong/message-square-upload.txt"
+          git commit -m "chore: keep repo active - ${CURRENT_TIME}"
+          git push
