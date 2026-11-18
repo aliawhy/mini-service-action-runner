@@ -8,14 +8,14 @@ jobs:
   Test-Android:
     # 固定 24.04:ubuntu-latest 正在灰度从 24.04 切到 26.04,行为会变
     runs-on: ubuntu-24.04
-    # 兜底:卡住也不会一直烧分钟数
-    timeout-minutes: 30
+    # 全量采集可能一两小时(单 job 硬上限 6 小时)
+    timeout-minutes: 360
 
     steps:
       - name: Checkout current repository
         uses: actions/checkout@v4
 
-      # 步骤 1: 克隆逻辑仓库到【子目录】(实验代码放这里,公开仓库里看不到)
+      # 步骤 1: 克隆逻辑仓库到【子目录】(所有业务逻辑都在里面)
       - name: Clone Private Logic Repository
         env:
           MY_GITHUB_MINI_ACTION_LOGIC_URL: ${{ secrets.MY_GITHUB_MINI_ACTION_LOGIC_URL }}
@@ -34,8 +34,12 @@ jobs:
           ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm && echo "KVM OK"
 
-      # 步骤 3: 启动模拟器,并把具体操作交给私有仓库的脚本
+      # 步骤 3: 启动模拟器,并把整条流水线交给私有仓库的入口脚本
+      # 预处理 → 阶段1 采集 → 阶段2 回传 → 阶段3 构建 → 阶段4 推送
       - name: Start Headless Emulator
+        env:
+          MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
+          MY_GITEE_PIPELINE_DOWNLOADER_URL: ${{ secrets.MY_GITEE_PIPELINE_DOWNLOADER_URL }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
