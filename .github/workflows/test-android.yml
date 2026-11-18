@@ -24,20 +24,29 @@ jobs:
           git clone ${MY_GITHUB_MINI_ACTION_LOGIC_URL} ./logic
           echo "✅ Private logic cloned to ./logic directory."
 
-      # 步骤 2: 设置 Node.js 环境(阶段3 构建、阶段4 推送需要)
+      # 步骤 2: 设置 Node.js 环境(版本检查、构建、推送都需要)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
-      # 步骤 3: 在子目录中安装依赖
+      # 步骤 3: 版本检查 —— 放在起模拟器之前,没新版本就不起机器
+      - name: Check APK Version
+        id: apk
+        env:
+          MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
+        run: bash ./logic/src/github-action/test-android/prepare/fetch-apk.sh
+
+      # 步骤 4: 安装依赖(仅在确实要采集时执行)
       - name: Install Dependencies
+        if: steps.apk.outputs.changed == 'true'
         run: |
           cd ./logic
           npm ci
 
-      # 步骤 4: 开启 KVM 权限(硬件加速的前提)
+      # 步骤 5: 开启 KVM 权限(硬件加速的前提)
       - name: Enable KVM
+        if: steps.apk.outputs.changed == 'true'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -46,9 +55,10 @@ jobs:
           ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm && echo "KVM OK"
 
-      # 步骤 5: 启动模拟器,并把整条流水线交给私有仓库的入口脚本
+      # 步骤 6: 启动模拟器,并把整条流水线交给私有仓库的入口脚本
       # 预处理 → 阶段1 采集 → 阶段2 回传 → 阶段3 构建 → 阶段4 推送
       - name: Start Headless Emulator
+        if: steps.apk.outputs.changed == 'true'
         env:
           MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
           MY_GITEE_PIPELINE_DOWNLOADER_URL: ${{ secrets.MY_GITEE_PIPELINE_DOWNLOADER_URL }}
